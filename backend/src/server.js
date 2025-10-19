@@ -2,7 +2,9 @@ import express from "express"
 import dotenv from 'dotenv'
 import authRoutes from "./routes/auth.route.js"
 import messageRoutes from "./routes/message.route.js";
-import path from "path"
+import path from "node:path"
+import { connectDB } from "./lib/db.js";
+
 
 dotenv.config();
 
@@ -10,6 +12,8 @@ const __dirname = path.resolve()
 
  
 const app = express()
+
+app.use(express.json()); // req.body
 
 // It tells your Express app to use some code for every incoming request or for requests matching a specific path.
 app.use("/api/auth",authRoutes)
@@ -28,4 +32,7 @@ if(process.env.NODE_ENV === "production"){
 }
 
 
-app.listen(port,() => console.log("Server is running on port 3000"))
+app.listen(port,() => {
+    console.log("Server is running on port 3000")
+    connectDB()
+});
