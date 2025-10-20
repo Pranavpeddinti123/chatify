@@ -5,7 +5,7 @@ import { arcjetProtection } from "../middleware/arcjet.middleware.js";
 
 const router = express.Router();
 
-router.use(arcjetProtection); // gloabal middleware that apply to the all routes 
+// router.use(arcjetProtection); // gloabal middleware that apply to the all routes 
 
 router.post("/signup",signup)
 
