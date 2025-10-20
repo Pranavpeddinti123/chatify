@@ -29,26 +29,13 @@ export const protectRoute = async(req,res,next) => {
 }
 
 // 2️⃣ What jwt.verify(token, secret) does
-
 // When you call:
-
 // const decoded = jwt.verify(token, ENV.JWT_SECRET)
-
-
 // This is what happens internally:
-
 // Split the token into its three parts: header, payload, signature.
-
 // const [header64, payload64, signature] = token.split('.');
-
-
 // Recalculate the signature using the header and payload with the secret you provided:
-
 // const expectedSignature = HMACSHA256(header64 + '.' + payload64, ENV.JWT_SECRET)
-
-
 // Compare signatures:
-
 // If expectedSignature === signature → token is valid
-
 // If not → token is invalid → throws an error
