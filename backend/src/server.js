@@ -5,6 +5,7 @@ import path from "node:path"
 import { connectDB } from "./lib/db.js";
 import { ENV } from "./lib/env.js";
 import cookieParser from "cookie-parser"
+import cors from "cors"
 
 
 const __dirname = path.resolve()
@@ -13,7 +14,9 @@ const __dirname = path.resolve()
 const app = express()
 
 app.use(express.json()); // req.body
+app.use(cors({origin:ENV.CLIENT_URL,credentials:true}));
 app.use(cookieParser()); // req.cookie
+
 
 // It tells your Express app to use some code for every incoming request or for requests matching a specific path.
 app.use("/api/auth",authRoutes)
