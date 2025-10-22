@@ -1,6 +1,15 @@
 import { create } from "zustand";
 import { useAuthStore } from "./useAuthStore";
 
+const ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  {
+    urls: "turn:global.relay.metered.ca:80",
+    username: "openai",
+    credential: "openai"
+  }
+];
+
 export const useCallStore = create((set, get) => ({
   isCalling: false,
   callAnswered: false,
@@ -22,12 +31,11 @@ export const useCallStore = create((set, get) => ({
 
     set({ isCalling: true, callAnswered: false, remoteUser: userId, callType: type });
 
-    // <-- ADDED: try/catch for camera
+    // getUserMedia with camera fallback logic
     let localStream = null;
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: type === "video", audio: true });
     } catch (error) {
-      // Try fallback to audio only if video fails
       if (type === "video") {
         alert("No camera detected or accessible. Proceeding with audio only.");
         localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
@@ -38,15 +46,14 @@ export const useCallStore = create((set, get) => ({
     }
     set({ localStream });
 
-    // Peer connection
-    const connection = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
+    // Peer connection with TURN + STUN!
+    const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     set({ connection });
 
     localStream.getTracks().forEach(track => connection.addTrack(track, localStream));
     const remoteStream = new MediaStream();
     set({ remoteStream });
+
     connection.ontrack = (event) => {
       event.streams[0].getTracks().forEach((track) => remoteStream.addTrack(track));
       set({ remoteStream });
@@ -120,14 +127,13 @@ export const useCallStore = create((set, get) => ({
     }
     set({ localStream });
 
-    const connection = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
+    const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     set({ connection });
 
     localStream.getTracks().forEach((track) => connection.addTrack(track, localStream));
     const remoteStream = new MediaStream();
     set({ remoteStream });
+
     connection.ontrack = (event) => {
       event.streams[0].getTracks().forEach((track) => remoteStream.addTrack(track));
       set({ remoteStream });
