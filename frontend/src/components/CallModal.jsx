@@ -1,4 +1,4 @@
-import { useCallStore } from "../store/UseCallStore";
+import { useCallStore } from "../store/useCallStore";
 import { PhoneIcon, VideoIcon } from "lucide-react";
 
 export default function CallModal() {
