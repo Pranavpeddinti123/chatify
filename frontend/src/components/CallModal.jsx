@@ -1,4 +1,4 @@
-import { useCallStore } from "../store/useCallStore";
+import { useCallStore } from "../store/UseCallStore";
 import { PhoneIcon, VideoIcon } from "lucide-react";
 
 export default function CallModal() {
@@ -76,6 +76,13 @@ export default function CallModal() {
               ref={video => { if (video && remoteStream) { video.srcObject = remoteStream; video.play().catch(() => {}); } }}
             />
           </div>
+        )}
+        {callType === "audio" && (
+          <audio
+            autoPlay
+            controls={false}
+            ref={audio => { if (audio && remoteStream) { audio.srcObject = remoteStream; audio.play().catch(() => {}); } }}
+          />
         )}
         <button className="bg-red-500 text-white rounded-full px-8 py-3 font-bold text-lg hover:bg-red-400 mt-2"
           onClick={endCall}
