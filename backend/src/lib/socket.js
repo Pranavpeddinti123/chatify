@@ -14,15 +14,12 @@ const io = new Server(server, {
   },
 });
 
-// apply authentication middleware to all socket connections
 io.use(socketAuthMiddleware);
 
-// we will use this function to check if the user is online or not
 export function getReceiverSocketId(userId) {
   return userSocketMap[userId];
 }
 
-// this is for storig online users
 const userSocketMap = {}; // {userId:socketId}
 
 io.on("connection", (socket) => {
@@ -31,14 +28,46 @@ io.on("connection", (socket) => {
   const userId = socket.userId;
   userSocketMap[userId] = socket.id;
 
-  // io.emit() is used to send events to all connected clients
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-  // with socket.on we listen for events from clients
   socket.on("disconnect", () => {
     console.log("A user disconnected", socket.user.fullName);
     delete userSocketMap[userId];
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
+  });
+
+  // WebRTC signaling events
+  socket.on("call:user", ({ to, offer, type }) => {
+    const receiverSocketId = userSocketMap[to];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("call:incoming", {
+        from: socket.userId,
+        offer,
+        name: socket.user.fullName,
+        type // Crucial: send type
+      });
+    }
+  });
+
+  socket.on("call:answer", ({ to, answer }) => {
+    const receiverSocketId = userSocketMap[to];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("call:answered", { from: socket.userId, answer });
+    }
+  });
+
+  socket.on("call:ice-candidate", ({ to, candidate }) => {
+    const receiverSocketId = userSocketMap[to];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("call:ice-candidate", { from: socket.userId, candidate });
+    }
+  });
+
+  socket.on("call:end", ({ to }) => {
+    const receiverSocketId = userSocketMap[to];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("call:ended", { from: socket.userId });
+    }
   });
 });
 
