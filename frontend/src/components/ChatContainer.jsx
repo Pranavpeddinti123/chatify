@@ -4,7 +4,7 @@ import { useChatStore } from "../store/useChatStore";
 import ChatHeader from "./ChatHeader";
 import NoChatHistoryPlaceholder from "./NoChatHistoryPlaceholder";
 import MessageInput from "./MessageInput";
-import MessagesLoadingSkeleton from "./MessageLoadingSkeleton";
+import MessagesLoadingSkeleton from "./MessagesLoadingSkeleton";
 
 function ChatContainer() {
   const {
@@ -12,17 +12,19 @@ function ChatContainer() {
     getMessagesByUserId,
     messages,
     isMessagesLoading,
+    subscribeToMessages,
+    unsubscribeFromMessages,
   } = useChatStore();
   const { authUser } = useAuthStore();
   const messageEndRef = useRef(null);
 
-//   useEffect(() => {
-//     getMessagesByUserId(selectedUser._id);
-//     subscribeToMessages();
+  useEffect(() => {
+    getMessagesByUserId(selectedUser._id);
+    subscribeToMessages();
 
-//     // clean up
-//     return () => unsubscribeFromMessages();
-//   }, [selectedUser, getMessagesByUserId, subscribeToMessages, unsubscribeFromMessages]);
+    // clean up
+    return () => unsubscribeFromMessages();
+  }, [selectedUser, getMessagesByUserId, subscribeToMessages, unsubscribeFromMessages]);
 
   useEffect(() => {
     if (messageEndRef.current) {

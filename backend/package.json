@@ -23,6 +23,7 @@
     "jsonwebtoken": "^9.0.2",
     "mern_whatsaap": "file:..",
     "mongoose": "^8.10.1",
-    "resend": "^6.2.0"
+    "resend": "^6.2.0",
+    "socket.io": "^4.8.1"
   }
 }
