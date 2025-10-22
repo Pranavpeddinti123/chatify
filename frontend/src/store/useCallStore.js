@@ -1,10 +1,15 @@
 import { create } from "zustand";
 import { useAuthStore } from "./useAuthStore";
 
+// Robust STUN + TURN config
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   {
-    urls: "turn:global.relay.metered.ca:80",
+    urls: [
+      "turn:global.relay.metered.ca:80?transport=udp",
+      "turn:global.relay.metered.ca:80?transport=tcp",
+      "turn:global.relay.metered.ca:443?transport=tcp"
+    ],
     username: "openai",
     credential: "openai"
   }
@@ -31,7 +36,7 @@ export const useCallStore = create((set, get) => ({
 
     set({ isCalling: true, callAnswered: false, remoteUser: userId, callType: type });
 
-    // getUserMedia with camera fallback logic
+    // getUserMedia with camera fallback
     let localStream = null;
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: type === "video", audio: true });
@@ -46,7 +51,7 @@ export const useCallStore = create((set, get) => ({
     }
     set({ localStream });
 
-    // Peer connection with TURN + STUN!
+    // Peer connection with TURN + STUN
     const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     set({ connection });
 
