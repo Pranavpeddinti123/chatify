@@ -14,24 +14,34 @@ function ContactList() {
   if (isUsersLoading) return <UsersLoadingSkeleton />;
 
   return (
-    <>
+    <div className="bg-[#111b21] h-full overflow-y-auto p-2">
       {allContacts.map((contact) => (
         <div
           key={contact._id}
-          className="bg-cyan-500/10 p-4 rounded-lg cursor-pointer hover:bg-cyan-500/20 transition-colors"
+          className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-[#202c33] transition-colors"
           onClick={() => setSelectedUser(contact)}
         >
-          <div className="flex items-center gap-3">
-            <div className={`avatar ${onlineUsers.includes(contact._id) ? "online" : "offline"}`}>
-              <div className="size-12 rounded-full">
-                <img src={contact.profilePic || "/avatar.png"} />
-              </div>
-            </div>
-            <h4 className="text-slate-200 font-medium">{contact.fullName}</h4>
+          <div className="relative">
+            <img
+              src={contact.profilePic || "/avatar.png"}
+              alt={contact.fullName}
+              className="w-12 h-12 rounded-full object-cover"
+            />
+            <span
+              className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#111b21] ${
+                onlineUsers.includes(contact._id) ? "bg-green-500" : "bg-gray-500"
+              }`}
+            ></span>
+          </div>
+
+          <div className="flex flex-col flex-1 border-b border-[#2f3b43] pb-2">
+            <h4 className="text-slate-100 font-medium">{contact.fullName}</h4>
+            <p className="text-slate-400 text-sm truncate">Tap to chat</p>
           </div>
         </div>
       ))}
-    </>
+    </div>
   );
 }
+
 export default ContactList;
