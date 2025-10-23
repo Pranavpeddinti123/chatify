@@ -24,21 +24,16 @@ export function getReceiverSocketId(userId) {
 }
 
 io.on("connection", (socket) => {
-  console.log(`✅ User connected: ${socket.user.fullName} (${socket.id})`);
-
   const userId = socket.userId;
   userSocketMap[userId] = socket.id;
-
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-  // Handle disconnect
   socket.on("disconnect", () => {
-    console.log(`❌ User disconnected: ${socket.user.fullName}`);
     delete userSocketMap[userId];
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
   });
 
-  // === WebRTC Signaling Events ===
+  // --- Signaling ---
   socket.on("call:user", ({ to, offer, type }) => {
     const receiverSocketId = userSocketMap[to];
     if (receiverSocketId) {
@@ -56,7 +51,7 @@ io.on("connection", (socket) => {
   socket.on("call:answer", ({ to, answer }) => {
     const receiverSocketId = userSocketMap[to];
     if (receiverSocketId) {
-      io.to(receiverSocketId).emit("call:answered", {
+      io.to(receiverSocketId).emit("call:answer", { // must match frontend!
         from: socket.userId,
         answer,
       });
@@ -73,7 +68,8 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("call:end", ({ to }) => {
+  // Call end / decline / hangup
+  socket.on("call:ended", ({ to }) => {
     const receiverSocketId = userSocketMap[to];
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("call:ended", { from: socket.userId });

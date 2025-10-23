@@ -1,14 +1,12 @@
 import { create } from "zustand";
 import { useAuthStore } from "./useAuthStore";
 
-// ✅ Replace with a *real* TURN server later
-// Example: from Twilio, Xirsys, or coturn
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   {
     urls: [
       "turn:YOUR_TURN_SERVER:3478?transport=udp",
-      "turn:YOUR_TURN_SERVER:3478?transport=tcp",
+      "turn:YOUR_TURN_SERVER:3478?transport=tcp"
     ],
     username: "YOUR_TURN_USERNAME",
     credential: "YOUR_TURN_PASSWORD",
@@ -29,14 +27,13 @@ export const useCallStore = create((set, get) => ({
 
   setCallState: (state) => set(state),
 
-  /** ---------- CALLER SIDE ---------- **/
+  // ------- CALLER -------
   startCall: async ({ userId, type }) => {
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
 
     set({ isCalling: true, callAnswered: false, remoteUser: userId, callType: type });
 
-    // 🎥 Get camera + mic
     let localStream;
     try {
       localStream = await navigator.mediaDevices.getUserMedia({
@@ -56,10 +53,8 @@ export const useCallStore = create((set, get) => ({
     const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     set({ connection });
 
-    // Add local tracks
     localStream.getTracks().forEach((track) => connection.addTrack(track, localStream));
 
-    // Setup remote stream
     const remoteStream = new MediaStream();
     connection.ontrack = (event) => {
       if (event.streams && event.streams[0]) {
@@ -68,26 +63,24 @@ export const useCallStore = create((set, get) => ({
       }
     };
 
-    // Send ICE candidates to receiver
     connection.onicecandidate = (event) => {
       if (event.candidate) {
         socket.emit("call:ice-candidate", { to: userId, candidate: event.candidate });
       }
     };
 
-    // Log state changes (for debugging)
     connection.onconnectionstatechange = () =>
       console.log("connectionState:", connection.connectionState);
+
     connection.oniceconnectionstatechange = () =>
       console.log("iceConnectionState:", connection.iceConnectionState);
 
-    // Create offer
     const offer = await connection.createOffer();
     await connection.setLocalDescription(offer);
 
-    socket.emit("call:offer", { to: userId, offer, type });
+    socket.emit("call:user", { to: userId, offer, type });
 
-    // Wait for answer
+    // SOCKET SIGNALING (cleaned up)
     socket.off("call:answer");
     socket.on("call:answer", async ({ answer }) => {
       set({ callAnswered: true });
@@ -100,24 +93,22 @@ export const useCallStore = create((set, get) => ({
       }
     });
 
-    // Listen for remote ICE candidates
+    socket.off("call:ended");
+    socket.on("call:ended", () => get().endCall(false));
+
     socket.off("call:ice-candidate");
     socket.on("call:ice-candidate", async ({ candidate }) => {
       if (candidate) {
         try {
           await connection.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
+        } catch(e) {
           console.error("Error adding ICE:", e);
         }
       }
     });
-
-    // Listen for call end
-    socket.off("call:ended");
-    socket.on("call:ended", () => get().endCall(false));
   },
 
-  /** ---------- RECEIVER SIDE ---------- **/
+  // ------- RECEIVER -------
   receiveCall: ({ from, offer, name, type }) => {
     set({
       isReceivingCall: true,
@@ -173,11 +164,13 @@ export const useCallStore = create((set, get) => ({
     };
 
     await connection.setRemoteDescription(new RTCSessionDescription(incomingOffer));
-
     const answer = await connection.createAnswer();
     await connection.setLocalDescription(answer);
 
     socket.emit("call:answer", { to: remoteUser, answer });
+
+    socket.off("call:ended");
+    socket.on("call:ended", () => get().endCall(false));
 
     socket.off("call:ice-candidate");
     socket.on("call:ice-candidate", async ({ candidate }) => {
@@ -189,12 +182,9 @@ export const useCallStore = create((set, get) => ({
         }
       }
     });
-
-    socket.off("call:ended");
-    socket.on("call:ended", () => get().endCall(false));
   },
 
-  /** ---------- END CALL ---------- **/
+  /** END/CANCEL/DECLINE CALL **/
   endCall: (shouldNotify = true) => {
     const socket = useAuthStore.getState().socket;
     const { remoteUser, connection, localStream } = get();
