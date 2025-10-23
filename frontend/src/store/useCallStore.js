@@ -1,38 +1,88 @@
 import { create } from "zustand";
 import { useAuthStore } from "./useAuthStore";
 
+// Use this for testing, replace with paid credentials for production
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   {
     urls: [
-      "turn:YOUR_TURN_SERVER:3478?transport=udp",
-      "turn:YOUR_TURN_SERVER:3478?transport=tcp"
+      "turn:global.relay.metered.ca:80?transport=udp",
+      "turn:global.relay.metered.ca:80?transport=tcp",
+      "turn:global.relay.metered.ca:443?transport=tcp"
     ],
-    username: "YOUR_TURN_USERNAME",
-    credential: "YOUR_TURN_PASSWORD",
-  },
+    username: "openai",
+    credential: "openai"
+  }
 ];
 
 export const useCallStore = create((set, get) => ({
+  // Call state
   isCalling: false,
   callAnswered: false,
   isReceivingCall: false,
   remoteUser: null,
   callType: null,
+  callerName: null,
   connection: null,
   localStream: null,
   remoteStream: null,
   incomingOffer: null,
-  callerName: null,
 
   setCallState: (state) => set(state),
 
-  // ------- CALLER -------
+  // Utility: Clean up all signaling
+  cleanupSocketListeners: (socket) => {
+    if (!socket) return;
+    socket.off("call:answer");
+    socket.off("call:ended");
+    socket.off("call:ice-candidate");
+  },
+
+  endCall: (shouldNotify = true) => {
+    const socket = useAuthStore.getState().socket;
+    const { remoteUser, connection, localStream } = get();
+
+    if (shouldNotify && socket && remoteUser) {
+      socket.emit("call:ended", { to: remoteUser });
+    }
+
+    if (localStream) {
+      localStream.getTracks().forEach((t) => t.stop());
+    }
+
+    if (connection) {
+      connection.ontrack = null;
+      connection.onicecandidate = null;
+      connection.onconnectionstatechange = null;
+      connection.oniceconnectionstatechange = null;
+      try {
+        connection.close();
+      } catch {}
+    }
+
+    get().cleanupSocketListeners(socket);
+
+    set({
+      isCalling: false,
+      callAnswered: false,
+      isReceivingCall: false,
+      remoteUser: null,
+      callType: null,
+      remoteStream: null,
+      connection: null,
+      incomingOffer: null,
+      localStream: null,
+      callerName: null
+    });
+  },
+
+  // Caller side
   startCall: async ({ userId, type }) => {
     const socket = useAuthStore.getState().socket;
-    if (!socket) return;
+    const callerName = useAuthStore.getState().user?.name || "You";
+    if (!socket || !userId) return;
 
-    set({ isCalling: true, callAnswered: false, remoteUser: userId, callType: type });
+    set({ isCalling: true, callAnswered: false, remoteUser: userId, callType: type, callerName });
 
     let localStream;
     try {
@@ -44,8 +94,10 @@ export const useCallStore = create((set, get) => ({
       if (type === "video") {
         alert("No camera detected. Switching to audio only.");
         localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+        set({ callType: 'audio' });
       } else {
-        throw error;
+        get().endCall(true);
+        return;
       }
     }
     set({ localStream });
@@ -57,7 +109,7 @@ export const useCallStore = create((set, get) => ({
 
     const remoteStream = new MediaStream();
     connection.ontrack = (event) => {
-      if (event.streams && event.streams[0]) {
+      if (event.streams && event.streams[0] && event.streams[0].getTracks().length > 0) {
         event.streams[0].getTracks().forEach((t) => remoteStream.addTrack(t));
         set({ remoteStream });
       }
@@ -69,46 +121,53 @@ export const useCallStore = create((set, get) => ({
       }
     };
 
-    connection.onconnectionstatechange = () =>
-      console.log("connectionState:", connection.connectionState);
+    connection.oniceconnectionstatechange = () => {
+      const state = connection.iceConnectionState;
+      if (state === 'failed' || state === 'closed') {
+        get().endCall(false);
+      }
+    };
+    connection.onconnectionstatechange = () => {
+      const state = connection.connectionState;
+      if (state === 'disconnected' || state === 'failed') {
+        get().endCall(false);
+      }
+    };
 
-    connection.oniceconnectionstatechange = () =>
-      console.log("iceConnectionState:", connection.iceConnectionState);
+    try {
+      const offer = await connection.createOffer();
+      await connection.setLocalDescription(offer);
+      socket.emit("call:user", { to: userId, offer, type, name: callerName });
+    } catch (e) {
+      get().endCall(true);
+      return;
+    }
 
-    const offer = await connection.createOffer();
-    await connection.setLocalDescription(offer);
+    get().cleanupSocketListeners(socket);
 
-    socket.emit("call:user", { to: userId, offer, type });
-
-    // SOCKET SIGNALING (cleaned up)
-    socket.off("call:answer");
     socket.on("call:answer", async ({ answer }) => {
       set({ callAnswered: true });
       try {
-        if (!connection.currentRemoteDescription) {
+        if (connection && !connection.currentRemoteDescription) {
           await connection.setRemoteDescription(new RTCSessionDescription(answer));
         }
       } catch (e) {
-        console.error("Error setting remote desc:", e);
+        //
       }
     });
 
-    socket.off("call:ended");
     socket.on("call:ended", () => get().endCall(false));
 
-    socket.off("call:ice-candidate");
     socket.on("call:ice-candidate", async ({ candidate }) => {
-      if (candidate) {
+      if (candidate && connection) {
         try {
           await connection.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch(e) {
-          console.error("Error adding ICE:", e);
-        }
+        } catch (e) {}
       }
     });
   },
 
-  // ------- RECEIVER -------
+  // Receiver side
   receiveCall: ({ from, offer, name, type }) => {
     set({
       isReceivingCall: true,
@@ -138,8 +197,10 @@ export const useCallStore = create((set, get) => ({
       if (callType === "video") {
         alert("No camera detected. Switching to audio only.");
         localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+        set({ callType: 'audio' });
       } else {
-        throw error;
+        get().endCall(true);
+        return;
       }
     }
     set({ localStream });
@@ -147,12 +208,12 @@ export const useCallStore = create((set, get) => ({
     const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     set({ connection });
 
-    localStream.getTracks().forEach((t) => connection.addTrack(t, localStream));
+    localStream.getTracks().forEach((track) => connection.addTrack(track, localStream));
 
     const remoteStream = new MediaStream();
     connection.ontrack = (event) => {
-      if (event.streams && event.streams[0]) {
-        event.streams[0].getTracks().forEach((track) => remoteStream.addTrack(track));
+      if (event.streams && event.streams[0] && event.streams[0].getTracks().length > 0) {
+        event.streams[0].getTracks().forEach((t) => remoteStream.addTrack(t));
         set({ remoteStream });
       }
     };
@@ -162,60 +223,39 @@ export const useCallStore = create((set, get) => ({
         socket.emit("call:ice-candidate", { to: remoteUser, candidate: event.candidate });
       }
     };
+    connection.oniceconnectionstatechange = () => {
+      const state = connection.iceConnectionState;
+      if (state === 'failed' || state === 'closed') {
+        get().endCall(false);
+      }
+    };
+    connection.onconnectionstatechange = () => {
+      const state = connection.connectionState;
+      if (state === 'disconnected' || state === 'failed') {
+        get().endCall(false);
+      }
+    };
 
-    await connection.setRemoteDescription(new RTCSessionDescription(incomingOffer));
-    const answer = await connection.createAnswer();
-    await connection.setLocalDescription(answer);
+    try {
+      await connection.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+      const answer = await connection.createAnswer();
+      await connection.setLocalDescription(answer);
+      socket.emit("call:answer", { to: remoteUser, answer });
+    } catch (e) {
+      get().endCall(true);
+      return;
+    }
 
-    socket.emit("call:answer", { to: remoteUser, answer });
+    get().cleanupSocketListeners(socket);
 
-    socket.off("call:ended");
     socket.on("call:ended", () => get().endCall(false));
 
-    socket.off("call:ice-candidate");
     socket.on("call:ice-candidate", async ({ candidate }) => {
-      if (candidate) {
+      if (candidate && connection) {
         try {
           await connection.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-          console.error("Error adding ICE:", e);
-        }
+        } catch (e) {}
       }
-    });
-  },
-
-  /** END/CANCEL/DECLINE CALL **/
-  endCall: (shouldNotify = true) => {
-    const socket = useAuthStore.getState().socket;
-    const { remoteUser, connection, localStream } = get();
-
-    if (shouldNotify && socket && remoteUser) {
-      socket.emit("call:ended", { to: remoteUser });
-    }
-
-    if (connection) {
-      connection.ontrack = null;
-      connection.onicecandidate = null;
-      try {
-        connection.close();
-      } catch {}
-    }
-
-    if (localStream) {
-      localStream.getTracks().forEach((t) => t.stop());
-    }
-
-    set({
-      isCalling: false,
-      callAnswered: false,
-      isReceivingCall: false,
-      remoteUser: null,
-      callType: null,
-      remoteStream: null,
-      connection: null,
-      incomingOffer: null,
-      localStream: null,
-      callerName: null,
     });
   },
 }));
