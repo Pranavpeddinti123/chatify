@@ -10,33 +10,35 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: [ENV.CLIENT_URL],
+    methods: ["GET", "POST"],
     credentials: true,
   },
 });
 
 io.use(socketAuthMiddleware);
 
+const userSocketMap = {}; // { userId: socketId }
+
 export function getReceiverSocketId(userId) {
   return userSocketMap[userId];
 }
 
-const userSocketMap = {}; // {userId:socketId}
-
 io.on("connection", (socket) => {
-  console.log("A user connected", socket.user.fullName);
+  console.log(`✅ User connected: ${socket.user.fullName} (${socket.id})`);
 
   const userId = socket.userId;
   userSocketMap[userId] = socket.id;
 
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
+  // Handle disconnect
   socket.on("disconnect", () => {
-    console.log("A user disconnected", socket.user.fullName);
+    console.log(`❌ User disconnected: ${socket.user.fullName}`);
     delete userSocketMap[userId];
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
   });
 
-  // WebRTC signaling events
+  // === WebRTC Signaling Events ===
   socket.on("call:user", ({ to, offer, type }) => {
     const receiverSocketId = userSocketMap[to];
     if (receiverSocketId) {
@@ -44,22 +46,30 @@ io.on("connection", (socket) => {
         from: socket.userId,
         offer,
         name: socket.user.fullName,
-        type // Crucial: send type
+        type,
       });
+    } else {
+      socket.emit("call:error", { message: "User not available" });
     }
   });
 
   socket.on("call:answer", ({ to, answer }) => {
     const receiverSocketId = userSocketMap[to];
     if (receiverSocketId) {
-      io.to(receiverSocketId).emit("call:answered", { from: socket.userId, answer });
+      io.to(receiverSocketId).emit("call:answered", {
+        from: socket.userId,
+        answer,
+      });
     }
   });
 
   socket.on("call:ice-candidate", ({ to, candidate }) => {
     const receiverSocketId = userSocketMap[to];
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("call:ice-candidate", { from: socket.userId, candidate });
+    if (receiverSocketId && candidate) {
+      io.to(receiverSocketId).emit("call:ice-candidate", {
+        from: socket.userId,
+        candidate,
+      });
     }
   });
 

@@ -1,18 +1,18 @@
 import { create } from "zustand";
 import { useAuthStore } from "./useAuthStore";
 
-// Robust STUN + TURN config
+// ✅ Replace with a *real* TURN server later
+// Example: from Twilio, Xirsys, or coturn
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   {
     urls: [
-      "turn:global.relay.metered.ca:80?transport=udp",
-      "turn:global.relay.metered.ca:80?transport=tcp",
-      "turn:global.relay.metered.ca:443?transport=tcp"
+      "turn:YOUR_TURN_SERVER:3478?transport=udp",
+      "turn:YOUR_TURN_SERVER:3478?transport=tcp",
     ],
-    username: "openai",
-    credential: "openai"
-  }
+    username: "YOUR_TURN_USERNAME",
+    credential: "YOUR_TURN_PASSWORD",
+  },
 ];
 
 export const useCallStore = create((set, get) => ({
@@ -29,76 +29,95 @@ export const useCallStore = create((set, get) => ({
 
   setCallState: (state) => set(state),
 
-  /** CALLER side (initiator) **/
+  /** ---------- CALLER SIDE ---------- **/
   startCall: async ({ userId, type }) => {
     const socket = useAuthStore.getState().socket;
     if (!socket) return;
 
     set({ isCalling: true, callAnswered: false, remoteUser: userId, callType: type });
 
-    // getUserMedia with camera fallback
-    let localStream = null;
+    // 🎥 Get camera + mic
+    let localStream;
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: type === "video", audio: true });
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video: type === "video",
+        audio: true,
+      });
     } catch (error) {
       if (type === "video") {
-        alert("No camera detected or accessible. Proceeding with audio only.");
+        alert("No camera detected. Switching to audio only.");
         localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
       } else {
-        alert("No microphone detected or accessible.");
         throw error;
       }
     }
     set({ localStream });
 
-    // Peer connection with TURN + STUN
     const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     set({ connection });
 
-    localStream.getTracks().forEach(track => connection.addTrack(track, localStream));
-    const remoteStream = new MediaStream();
-    set({ remoteStream });
+    // Add local tracks
+    localStream.getTracks().forEach((track) => connection.addTrack(track, localStream));
 
+    // Setup remote stream
+    const remoteStream = new MediaStream();
     connection.ontrack = (event) => {
-      event.streams[0].getTracks().forEach((track) => remoteStream.addTrack(track));
-      set({ remoteStream });
+      if (event.streams && event.streams[0]) {
+        event.streams[0].getTracks().forEach((t) => remoteStream.addTrack(t));
+        set({ remoteStream });
+      }
     };
 
+    // Send ICE candidates to receiver
     connection.onicecandidate = (event) => {
       if (event.candidate) {
         socket.emit("call:ice-candidate", { to: userId, candidate: event.candidate });
       }
     };
 
+    // Log state changes (for debugging)
+    connection.onconnectionstatechange = () =>
+      console.log("connectionState:", connection.connectionState);
+    connection.oniceconnectionstatechange = () =>
+      console.log("iceConnectionState:", connection.iceConnectionState);
+
+    // Create offer
     const offer = await connection.createOffer();
     await connection.setLocalDescription(offer);
 
-    socket.emit("call:user", { to: userId, offer, type });
+    socket.emit("call:offer", { to: userId, offer, type });
 
-    socket.off("call:answered");
-    socket.on("call:answered", async ({ answer }) => {
+    // Wait for answer
+    socket.off("call:answer");
+    socket.on("call:answer", async ({ answer }) => {
       set({ callAnswered: true });
-      if (!connection.currentRemoteDescription) {
-        await connection.setRemoteDescription(new RTCSessionDescription(answer));
+      try {
+        if (!connection.currentRemoteDescription) {
+          await connection.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+      } catch (e) {
+        console.error("Error setting remote desc:", e);
       }
     });
 
+    // Listen for remote ICE candidates
     socket.off("call:ice-candidate");
     socket.on("call:ice-candidate", async ({ candidate }) => {
       if (candidate) {
         try {
           await connection.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
-          console.error("Error adding ICE candidate:", e);
+          console.error("Error adding ICE:", e);
         }
       }
     });
 
+    // Listen for call end
     socket.off("call:ended");
     socket.on("call:ended", () => get().endCall(false));
   },
 
-  /** RECEIVER side (invitee) **/
+  /** ---------- RECEIVER SIDE ---------- **/
   receiveCall: ({ from, offer, name, type }) => {
     set({
       isReceivingCall: true,
@@ -118,15 +137,17 @@ export const useCallStore = create((set, get) => ({
 
     set({ isReceivingCall: false, isCalling: true, callAnswered: true });
 
-    let localStream = null;
+    let localStream;
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: callType === "video", audio: true });
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video: callType === "video",
+        audio: true,
+      });
     } catch (error) {
       if (callType === "video") {
-        alert("No camera detected or accessible. Proceeding with audio only.");
+        alert("No camera detected. Switching to audio only.");
         localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
       } else {
-        alert("No microphone detected or accessible.");
         throw error;
       }
     }
@@ -135,13 +156,14 @@ export const useCallStore = create((set, get) => ({
     const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     set({ connection });
 
-    localStream.getTracks().forEach((track) => connection.addTrack(track, localStream));
-    const remoteStream = new MediaStream();
-    set({ remoteStream });
+    localStream.getTracks().forEach((t) => connection.addTrack(t, localStream));
 
+    const remoteStream = new MediaStream();
     connection.ontrack = (event) => {
-      event.streams[0].getTracks().forEach((track) => remoteStream.addTrack(track));
-      set({ remoteStream });
+      if (event.streams && event.streams[0]) {
+        event.streams[0].getTracks().forEach((track) => remoteStream.addTrack(track));
+        set({ remoteStream });
+      }
     };
 
     connection.onicecandidate = (event) => {
@@ -151,6 +173,7 @@ export const useCallStore = create((set, get) => ({
     };
 
     await connection.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+
     const answer = await connection.createAnswer();
     await connection.setLocalDescription(answer);
 
@@ -162,7 +185,7 @@ export const useCallStore = create((set, get) => ({
         try {
           await connection.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
-          console.error("Error adding ICE candidate:", e);
+          console.error("Error adding ICE:", e);
         }
       }
     });
@@ -171,18 +194,21 @@ export const useCallStore = create((set, get) => ({
     socket.on("call:ended", () => get().endCall(false));
   },
 
+  /** ---------- END CALL ---------- **/
   endCall: (shouldNotify = true) => {
     const socket = useAuthStore.getState().socket;
     const { remoteUser, connection, localStream } = get();
 
     if (shouldNotify && socket && remoteUser) {
-      socket.emit("call:end", { to: remoteUser });
+      socket.emit("call:ended", { to: remoteUser });
     }
 
     if (connection) {
       connection.ontrack = null;
       connection.onicecandidate = null;
-      connection.close();
+      try {
+        connection.close();
+      } catch {}
     }
 
     if (localStream) {
