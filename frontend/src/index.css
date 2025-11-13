@@ -2,34 +2,102 @@
 @tailwind components;
 @tailwind utilities;
 
+/* For animated borders */
 @property --border-angle {
   inherits: false;
   initial-value: 0deg;
   syntax: "<angle>";
 }
 
+/* 🔹 Input Field — glassy, glowing focus */
 .input {
-  @apply w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2 pl-10 pr-4 text-slate-200 placeholder-slate-400 focus:ring-2 focus:ring-cyan-500 focus:border-transparent;
+  @apply w-full bg-slate-900/40 border border-slate-700/40 
+         rounded-xl py-3 pl-11 pr-4 text-slate-200 
+         placeholder-slate-500 
+         shadow-inner backdrop-blur-md
+         transition-all duration-300
+         focus:outline-none focus:ring-2 focus:ring-cyan-400/60 
+         focus:border-cyan-400/40 hover:border-cyan-300/30;
 }
 
+/* 🔹 Input Icon — soft glow + alignment */
 .auth-input-icon {
-  @apply absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-5;
+  @apply absolute left-3 top-1/2 -translate-y-1/2 
+         text-slate-400/80 size-5 transition-colors duration-300;
+}
+.input:focus ~ .auth-input-icon {
+  @apply text-cyan-400;
 }
 
+/* 🔹 Label — smooth fade-in + spacing */
 .auth-input-label {
-  @apply block text-sm font-medium text-slate-300 mb-2;
+  @apply block text-sm font-medium text-slate-400 mb-2 tracking-wide 
+         transition-colors duration-300;
+}
+.input:focus ~ .auth-input-label {
+  @apply text-cyan-300;
 }
 
+/* 🔹 Badge — 3D glass pill */
 .auth-badge {
-  @apply inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-cyan-500/20 text-cyan-300;
+  @apply inline-flex items-center px-3 py-1 text-xs font-medium 
+         rounded-full bg-gradient-to-r from-cyan-600/20 to-blue-700/10 
+         border border-cyan-500/30 text-cyan-300 
+         backdrop-blur-md shadow-inner 
+         transition-all duration-300 hover:scale-105 hover:text-cyan-200;
 }
 
+/* 🔹 Button — animated gradient + glow + depth */
 .auth-btn {
-  @apply w-full bg-cyan-500 text-white rounded-lg py-2.5 font-medium
-  hover:bg-cyan-600 focus:ring-2 focus:ring-cyan-500;
+  @apply relative w-full py-3 rounded-xl font-semibold 
+         text-white shadow-lg overflow-hidden
+         transition-all duration-500 ease-out;
+  background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+}
+.auth-btn::before {
+  content: "";
+  @apply absolute inset-0 rounded-xl opacity-0 transition-all duration-500;
+  background: linear-gradient(135deg, #22d3ee 0%, #60a5fa 100%);
+}
+.auth-btn:hover::before {
+  @apply opacity-100;
+}
+.auth-btn:hover {
+  @apply scale-[1.03] shadow-cyan-500/40;
 }
 
+/* 🔹 Modern Link — neon underline animation */
 .auth-link {
-  @apply px-4 py-2 inline-block bg-cyan-500/10 rounded-lg text-cyan-400
-  hover:text-cyan-500 text-sm transition-colors;
+  @apply relative inline-block text-cyan-400 hover:text-cyan-300 
+         text-sm transition-all duration-300;
+}
+
+.auth-link::after {
+  content: "";
+  @apply absolute left-0 bottom-0 w-0 h-[2px] bg-cyan-400 
+         rounded-full transition-all duration-300;
+}
+
+.auth-link:hover::after {
+  @apply w-full;
+}
+
+/* 🔹 Optional container for form card */
+.auth-card {
+  @apply bg-slate-900/60 border border-slate-800/50 
+         rounded-2xl p-8 shadow-xl 
+         backdrop-blur-lg transition-all duration-500 
+         hover:shadow-cyan-500/20;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-in-out;
 }
