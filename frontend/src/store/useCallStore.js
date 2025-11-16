@@ -5,13 +5,9 @@ import { useAuthStore } from "./useAuthStore";
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   {
-    urls: [
-      "turn:global.relay.metered.ca:80?transport=udp",
-      "turn:global.relay.metered.ca:80?transport=tcp",
-      "turn:global.relay.metered.ca:443?transport=tcp"
-    ],
-    username: "openai",
-    credential: "openai"
+    urls: ["turn:relay.metered.ca:443"],
+    username: "open",
+    credential: "open"
   }
 ];
 
