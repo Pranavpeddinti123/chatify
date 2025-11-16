@@ -23,14 +23,7 @@
   "homepage": "https://github.com/Pranavpeddinti123/chatify#readme",
   "description": "",
   "dependencies": {
-<<<<<<< HEAD
-    "@huggingface/inference": "^4.13.3",
-    "@langchain/community": "^1.0.3",
-    "@langchain/core": "^1.0.5",
-    "langchain": "^1.0.4"
-=======
     "dotenv": "^17.2.3",
     "groq-sdk": "^0.35.0"
->>>>>>> 54800c3cb06112b908b00984a7928ed4f8592dd5
   }
 }

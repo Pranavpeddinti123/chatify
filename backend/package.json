@@ -14,18 +14,10 @@
   "dependencies": {
     "@arcjet/inspect": "^1.0.0-beta.10",
     "@arcjet/node": "^1.0.0-beta.10",
-<<<<<<< HEAD
-    "@huggingface/inference": "^4.13.2",
-    "@langchain/classic": "^1.0.3",
-    "@langchain/community": "^1.0.3",
-    "@langchain/core": "^1.0.5",
-    "@langchain/google-genai": "^1.0.1",
-=======
     "@huggingface/inference": "^4.13.3",
     "@langchain/community": "^1.0.3",
-    "@langchain/core": "^1.0.4",
+    "@langchain/core": "^1.0.5",
     "@langchain/groq": "^1.0.1",
->>>>>>> 54800c3cb06112b908b00984a7928ed4f8592dd5
     "@langchain/textsplitters": "^1.0.0",
     "bcryptjs": "^2.4.3",
     "chromadb": "^3.1.4",
