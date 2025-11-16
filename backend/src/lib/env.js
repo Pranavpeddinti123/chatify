@@ -1,4 +1,10 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// Load .env from the backend root (two levels up from this file)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 export const ENV = {
   PORT: process.env.PORT,
@@ -14,6 +20,16 @@ export const ENV = {
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
   ARCJET_KEY: process.env.ARCJET_KEY,
   ARCJET_ENV: process.env.ARCJET_ENV,
+  HUGGINGFACEHUB_API_TOKEN: process.env.HUGGINGFACEHUB_API_TOKEN,
+  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+  OPENROUTER_MODEL: process.env.OPENROUTER_MODEL,
+  HF_MODEL: process.env.HF_MODEL,
+  HF_EMBEDDING_MODEL: process.env.HF_EMBEDDING_MODEL,
+  // Google Generative API / Gemini
+  GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+  GOOGLE_MODEL: process.env.GOOGLE_MODEL,
+  GOOGLE_MAX_OUTPUT_TOKENS: process.env.GOOGLE_MAX_OUTPUT_TOKENS,
+  GOOGLE_TEMPERATURE: process.env.GOOGLE_TEMPERATURE,
 };
 
 // PORT = 3000

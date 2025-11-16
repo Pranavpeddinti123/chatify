@@ -16,7 +16,7 @@ function ChatsList() {
   if (chats.length === 0) return <NoChatsFound />;
 
   return (
-    <div className="h-full overflow-y-auto bg-gradient-to-b from-[#06080f] via-[#0a1018] to-[#0e1522] scrollbar-thin scrollbar-thumb-[#22303f]/70 scrollbar-track-transparent">
+    <div className='h-full overflow-y-auto bg-gradient-to-b from-[#06080f] via-[#0a1018] to-[#0e1522] scrollbar-thin scrollbar-thumb-[#22303f]/70 scrollbar-track-transparent'>
       {chats.map((chat) => (
         <div
           key={chat._id}
