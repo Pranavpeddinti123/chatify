@@ -7,10 +7,19 @@ export const useChatStore = create((set, get) => ({
   allContacts: [],
   chats: [],
   messages: [],
+  chatbotMessages: [
+    {
+      _id: "initial-bot-message",
+      senderId: "chatbot-user",
+      text: "Hello! I am the Chatify AI Assistant. How can I help you today?",
+      createdAt: new Date().toISOString(),
+    },
+  ],
   activeTab: "chats",
   selectedUser: null,
   isUsersLoading: false,
   isMessagesLoading: false,
+  isBotTyping: false,
   isSoundEnabled: JSON.parse(localStorage.getItem("isSoundEnabled")) === true,
 
   toggleSound: () => {
@@ -20,7 +29,16 @@ export const useChatStore = create((set, get) => ({
   },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
-  setSelectedUser: (selectedUser) => set({ selectedUser }),
+  setSelectedUser: (selectedUser) => {
+    if (get().selectedUser?._id !== selectedUser?._id) {
+      set({ messages: [] }); // Clear messages when user changes
+      if (selectedUser?._id !== "chatbot-user") {
+        // Optionally reset chatbot messages when switching to a real user
+        // set({ chatbotMessages: [] });
+      }
+    }
+    set({ selectedUser });
+  },
 
   getAllContacts: async () => {
     set({ isUsersLoading: true });
@@ -47,6 +65,10 @@ export const useChatStore = create((set, get) => ({
   },
 
   getMessagesByUserId: async (userId) => {
+    if (userId === "chatbot-user") {
+      set({ messages: get().chatbotMessages });
+      return;
+    }
     set({ isMessagesLoading: true });
     try {
       const res = await axiosInstance.get(`/messages/${userId}`);
@@ -59,7 +81,12 @@ export const useChatStore = create((set, get) => ({
   },
 
   sendMessage: async (messageData) => {
-    const { selectedUser, messages } = get();
+    const { selectedUser } = get();
+    if (selectedUser._id === "chatbot-user") {
+      return get().sendQueryToBot(messageData.text);
+    }
+
+    const { messages } = get();
     const { authUser } = useAuthStore.getState();
 
     const tempId = `temp-${Date.now()}`;
@@ -72,23 +99,67 @@ export const useChatStore = create((set, get) => ({
       createdAt: new Date().toISOString(),
     };
 
-    // Optimistic update
-    set({ messages: [...messages, optimisticMessage] });
+    set((state) => ({ messages: [...state.messages, optimisticMessage] }));
 
     try {
       const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
-      set({
-        messages: [...messages.filter((m) => m._id !== tempId), res.data],
-      });
+      set((state) => ({
+        messages: state.messages.map((m) => (m._id === tempId ? res.data : m)),
+      }));
     } catch (error) {
-      set({ messages: messages.filter((m) => m._id !== tempId) });
+      set((state) => ({ messages: state.messages.filter((m) => m._id !== tempId) }));
       toast.error(error.response?.data?.message || "Failed to send message");
+    }
+  },
+
+  sendQueryToBot: async (query) => {
+    const { authUser } = useAuthStore.getState();
+
+    const userMessage = {
+      _id: `user-${Date.now()}`,
+      senderId: authUser._id,
+      text: query,
+      createdAt: new Date().toISOString(),
+    };
+
+    set((state) => ({
+      chatbotMessages: [...state.chatbotMessages, userMessage],
+      isBotTyping: true,
+    }));
+
+    try {
+      const res = await axiosInstance.post("/rag/chat", { query });
+
+      const botMessage = {
+        _id: `bot-${Date.now()}`,
+        senderId: "chatbot-user",
+        text: res.data.response,
+        createdAt: new Date().toISOString(),
+      };
+
+      set((state) => ({
+        chatbotMessages: [...state.chatbotMessages, botMessage],
+      }));
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Error from AI assistant");
+      const errorMessage = {
+        _id: `error-${Date.now()}`,
+        senderId: "chatbot-user",
+        text: "Sorry, I am having trouble connecting. Please try again later.",
+        isError: true,
+        createdAt: new Date().toISOString(),
+      };
+      set((state) => ({
+        chatbotMessages: [...state.chatbotMessages, errorMessage],
+      }));
+    } finally {
+      set({ isBotTyping: false });
     }
   },
 
   subscribeToMessages: () => {
     const { selectedUser, isSoundEnabled } = get();
-    if (!selectedUser) return;
+    if (!selectedUser || selectedUser._id === "chatbot-user") return;
 
     const socket = useAuthStore.getState().socket;
 

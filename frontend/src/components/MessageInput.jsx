@@ -9,7 +9,9 @@ function MessageInput() {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
-  const { sendMessage, isSoundEnabled } = useChatStore();
+  const { sendMessage, isSoundEnabled, selectedUser } = useChatStore();
+
+  const isChatbotSelected = selectedUser?._id === "chatbot-user";
 
   const handleSendMessage = (e) => {
     e.preventDefault();
@@ -19,7 +21,7 @@ function MessageInput() {
 
     sendMessage({
       text: text.trim(),
-      image: imagePreview,
+      image: isChatbotSelected ? null : imagePreview,
     });
 
     setText("");
@@ -28,6 +30,10 @@ function MessageInput() {
   };
 
   const handleImageChange = (e) => {
+    if (isChatbotSelected) {
+      toast.error("Image uploads are not supported in this chat.");
+      return;
+    }
     const file = e.target.files[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -47,7 +53,7 @@ function MessageInput() {
 
   return (
     <div className="bg-[#202c33] p-3 border-t border-[#2f3b43]">
-      {imagePreview && (
+      {imagePreview && !isChatbotSelected && (
         <div className="flex items-center gap-3 mb-3">
           <div className="relative">
             <img
@@ -70,7 +76,8 @@ function MessageInput() {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="text-slate-300 hover:text-green-400 transition-colors"
+          disabled={isChatbotSelected}
+          className="text-slate-300 hover:text-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ImageIcon className="w-6 h-6" />
         </button>
@@ -81,6 +88,7 @@ function MessageInput() {
           ref={fileInputRef}
           onChange={handleImageChange}
           className="hidden"
+          disabled={isChatbotSelected}
         />
 
         <input
@@ -91,7 +99,7 @@ function MessageInput() {
             if (isSoundEnabled) playRandomKeyStrokeSound();
           }}
           className="flex-1 bg-[#2a3942] text-white rounded-full px-4 py-2 focus:outline-none placeholder:text-slate-400"
-          placeholder="Type a message"
+          placeholder={isChatbotSelected ? "Ask the AI..." : "Type a message"}
         />
 
         <button
