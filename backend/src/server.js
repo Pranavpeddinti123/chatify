@@ -2,6 +2,7 @@ import express from "express";
 import authRoutes from "./routes/auth.route.js";
 import messageRoutes from "./routes/message.route.js";
 import statusRoutes from "./routes/status.route.js"; 
+import ragRoutes from "./routes/rag.route.js";
 
 import path from "node:path";
 import { connectDB } from "./lib/db.js";
@@ -28,6 +29,7 @@ app.use((req, res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/status", statusRoutes); 
+app.use("/api/rag", ragRoutes);
 
 const port = ENV.PORT || 3000;
 
